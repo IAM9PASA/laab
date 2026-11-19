@@ -17,6 +17,8 @@ mod line;
 mod logfile;
 mod mcp;
 mod mcp_bridge;
+#[cfg(windows)]
+mod tray;
 mod mcp_tools;
 mod media;
 mod model;
@@ -173,7 +175,11 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
-        .plugin(tauri_plugin_notification::init());
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![tray::HIDDEN]),
+        ));
     builder
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
@@ -184,6 +190,14 @@ pub fn run() {
         .plugin(
             tauri_plugin_window_state::Builder::new()
                 .with_denylist(&[])
+                // On Windows the main window hides to the tray: don't bring
+                // back "hidden" at the next launch; tray::setup shows it.
+                .with_state_flags(if cfg!(windows) {
+                    tauri_plugin_window_state::StateFlags::all()
+                        - tauri_plugin_window_state::StateFlags::VISIBLE
+                } else {
+                    tauri_plugin_window_state::StateFlags::all()
+                })
                 .build(),
         )
         .register_asynchronous_uri_scheme_protocol("media", |ctx, request, responder| {
@@ -214,6 +228,12 @@ pub fn run() {
                 analytics::failed(&state, analytics::Failure::DatabaseUnreadable, "");
             }
             notify::setup(&app.config().identifier);
+            // Without a tray LAAB still opens; it just quits on close.
+            #[cfg(windows)]
+            if let Err(e) = tray::setup(app.handle(), &state) {
+                tracing::warn!("tray: {e}");
+                tray::show(app.handle());
+            }
             if let Some(w) = app.get_webview_window("main") {
                 traffic_lights::place(&w.as_ref().window());
             }
@@ -247,6 +267,17 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if window.label() != "main" {
+                return;
+            }
+            // Windows: closing hides to the tray; "ออกจาก LAAB" there quits.
+            #[cfg(windows)]
+            if let WindowEvent::CloseRequested { api, .. } = event
+                && tray::exists(window.app_handle())
+            {
+                api.prevent_close();
+                let _ = window.hide();
+                let state = window.app_handle().state::<Arc<AppState>>();
+                state.focus.lock().unwrap().active = false;
                 return;
             }
             if let WindowEvent::Resized(_) = event {

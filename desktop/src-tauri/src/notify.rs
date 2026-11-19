@@ -308,6 +308,7 @@ pub fn update_badge(state: &AppState) {
         // the count in the title, which the taskbar shows on hover.
         #[cfg(windows)]
         {
+            crate::tray::set_unread(&state.app, label.as_deref());
             let _ = w.set_overlay_icon(label.as_ref().map(|_| red_dot()));
             let _ = w.set_title(&match &label {
                 Some(n) => format!("LAAB ({n})"),

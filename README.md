@@ -41,7 +41,11 @@ the run's **Artifacts**. The database key is kept in Windows
 Credential Manager instead of the Keychain, and data lives in
 `%APPDATA%\Laab\`. In LIFF apps, a QR code is read from an image or from a
 snip of the screen (QR codes only, not barcodes). Unread chats show as a red
-dot on the taskbar icon and a count in the window title. Not on Windows yet:
+dot on the taskbar icon and a count in the window title. Closing the window
+keeps LAAB running in the notification area, so messages still notify;
+click its icon to open it, or right-click it to quit or to turn **เปิดเมื่อเริ่ม
+Windows** (start with Windows, straight to the tray) on or off. It's on after
+the first launch. Not on Windows yet:
 opening a chat by clicking its notification, the length of a voice clip
 that isn't M4A, and automatic updates (install a newer release over the old
 one).

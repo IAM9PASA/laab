@@ -72,6 +72,10 @@ getrandom = "0.3"
 tauri-plugin-notification = "2"
 # A second launch (a laab:// link, `LAAB mcp`) hands over to the running app.
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+# Closing the window hides LAAB to the notification area; it can start
+# with Windows.
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-autostart = "2"
 windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_Globalization"] }
 # QR codes for liff.scanCode(), which macOS reads with Vision.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp", "tiff"] }
