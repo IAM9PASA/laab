@@ -64,8 +64,16 @@ async fn pick_image(app: &AppHandle) -> Option<PathBuf> {
     rx.await.ok()??.into_path().ok()
 }
 
+/// No region screenshot tool to call outside macOS; the user picks a saved
+/// image instead.
+#[cfg(not(target_os = "macos"))]
+async fn capture_region() -> Option<PathBuf> {
+    None
+}
+
 /// macOS's own region screenshot (⌘⇧4): the user drags over the code, or
 /// presses Escape and nothing is saved.
+#[cfg(target_os = "macos")]
 async fn capture_region() -> Option<PathBuf> {
     let path =
         std::env::temp_dir().join(format!("laab-scan-{}.png", crate::state::now_ms() as u64));

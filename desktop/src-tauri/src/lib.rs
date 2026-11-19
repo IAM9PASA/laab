@@ -127,6 +127,14 @@ fn alert(message: &str, info: &str) {
             alert.runModal();
         }
     }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
+        let wide = |s: &str| s.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+        let (text, title) = (wide(&format!("{message}\n\n{info}")), wide("LAAB"));
+        // SAFETY: both strings are NUL-terminated UTF-16 that outlive the call.
+        unsafe { MessageBoxW(std::ptr::null_mut(), text.as_ptr(), title.as_ptr(), MB_OK | MB_ICONERROR) };
+    }
 }
 
 /// `LAAB mcp`: pipe stdio to the running app's MCP server.
@@ -153,7 +161,20 @@ pub fn run() {
     tracing::info!("LAAB starting");
     let demo = std::env::args().any(|a| a == "--demo") || std::env::var_os("LAAB_DEMO").is_some();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Must come first: a second LAAB.exe started by a laab:// link or by
+    // `LAAB mcp` passes its arguments here and exits.
+    #[cfg(windows)]
+    let builder = builder
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_notification::init());
+    builder
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

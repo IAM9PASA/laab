@@ -6,9 +6,11 @@ use anyhow::{Result, bail};
 
 const SERVICE: &str = "tech.softnetics.laab";
 /// Where builds before the bundle id change kept the key.
+#[cfg(target_os = "macos")]
 const OLD_SERVICE: &str = "app.laab.mac";
 const ACCOUNT: &str = "database-key";
 /// errSecItemNotFound
+#[cfg(target_os = "macos")]
 const NOT_FOUND: i32 = -25300;
 
 /// The stored key, or a new one if there is none.
@@ -53,7 +55,36 @@ fn stored_key(service: &str) -> Result<Option<String>> {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+/// On Windows the key is a generic credential in Credential Manager
+/// (target `database-key.tech.softnetics.laab`), readable only by this
+/// Windows user.
+#[cfg(windows)]
 pub fn database_key() -> Result<String> {
-    bail!("database encryption needs the macOS keychain")
+    let entry = keyring::Entry::new(SERVICE, ACCOUNT)?;
+    match entry.get_password() {
+        Ok(key) => {
+            if !is_key(&key) {
+                bail!("the credential {SERVICE}/{ACCOUNT} is not a database key");
+            }
+            Ok(key)
+        }
+        Err(keyring::Error::NoEntry) => {
+            let mut raw = [0u8; 32];
+            getrandom::fill(&mut raw).map_err(|e| anyhow::anyhow!("random key: {e}"))?;
+            let key = hex::encode(raw);
+            entry.set_password(&key)?;
+            Ok(key)
+        }
+        Err(e) => bail!("อ่านกุญแจฐานข้อมูลจาก Credential Manager ไม่ได้: {e}"),
+    }
+}
+
+#[cfg(windows)]
+fn is_key(key: &str) -> bool {
+    key.len() == 64 && key.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn database_key() -> Result<String> {
+    bail!("database encryption needs the macOS keychain or Windows Credential Manager")
 }

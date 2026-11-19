@@ -1,9 +1,11 @@
-//! macOS banners for new messages, and the Dock badge.
+//! Banners for new messages (macOS, Windows), and the Dock badge.
 
 use std::sync::{Arc, Mutex};
 
 use line_rs::client::settings::NotificationSettings;
-use tauri::{Emitter, Manager};
+#[cfg(target_os = "macos")]
+use tauri::Emitter;
+use tauri::Manager;
 
 use crate::model::{Chat, Message};
 use crate::state::{AppState, Focus};
@@ -234,7 +236,25 @@ fn post(
     });
 }
 
-#[cfg(not(target_os = "macos"))]
+/// A Windows toast. The plugin has no click callback on desktop, so a
+/// click only brings LAAB forward rather than opening the chat.
+#[cfg(windows)]
+fn post(
+    app: tauri::AppHandle,
+    title: String,
+    subtitle: Option<String>,
+    text: String,
+    _chat_id: String,
+) {
+    use tauri_plugin_notification::NotificationExt;
+    let title = match subtitle {
+        Some(s) if !s.is_empty() => format!("{title} · {s}"),
+        _ => title,
+    };
+    let _ = app.notification().builder().title(title).body(text).show();
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 fn post(
     _app: tauri::AppHandle,
     _title: String,

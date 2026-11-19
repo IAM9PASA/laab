@@ -61,3 +61,15 @@ objc2-core-media = { version = "0.3", default-features = false, features = ["std
 objc2-image-io = { version = "0.3", default-features = false, features = ["std", "CGImageSource", "CGImageDestination", "CGImageProperties", "objc2-core-graphics"] }
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGImage", "CGBitmapContext", "CGColorSpace", "CGContext"] }
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFData", "CFDictionary", "CFString", "CFNumber", "CFURL", "CFBase", "CFCGTypes"] }
+
+[target.'cfg(windows)'.dependencies]
+# SQLCipher uses CommonCrypto on macOS; on Windows it needs OpenSSL, built in.
+rusqlite = { version = "0.37", features = ["bundled-sqlcipher-vendored-openssl"] }
+# The database key lives in Windows Credential Manager, as it does in the
+# macOS keychain.
+keyring = { version = "3", features = ["windows-native"] }
+getrandom = "0.3"
+tauri-plugin-notification = "2"
+# A second launch (a laab:// link, `LAAB mcp`) hands over to the running app.
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }

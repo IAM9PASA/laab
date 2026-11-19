@@ -1,4 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
+import { isWindows } from "../lib/platform";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, errorText } from "../lib/api";
@@ -362,7 +363,8 @@ export const Composer = forwardRef<
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     const plain = !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey;
     const silent = e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey;
-    if (pendingImages.length && !(pickerOpen && candidates.length) && e.key === "Enter" && (plain || silent || (e.metaKey && !e.shiftKey))) {
+    const mod = e.metaKey || (isWindows && e.ctrlKey);
+    if (pendingImages.length && !(pickerOpen && candidates.length) && e.key === "Enter" && (plain || silent || (mod && !e.shiftKey))) {
       e.preventDefault();
       void send(silent);
       return;
@@ -391,7 +393,7 @@ export const Composer = forwardRef<
       onStep(e.key === "ArrowDown" ? 1 : -1);
       return;
     }
-    if (e.key === "Enter" && (plain || silent || (e.metaKey && !e.shiftKey))) {
+    if (e.key === "Enter" && (plain || silent || (mod && !e.shiftKey))) {
       e.preventDefault();
       void send(silent);
       return;

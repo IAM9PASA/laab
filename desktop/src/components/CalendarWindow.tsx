@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { isWindows } from "../lib/platform";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { api, errorText, queryClient, useChatList, usePeople } from "../lib/api";
@@ -126,7 +127,7 @@ export function CalendarWindow({ chatId, day: openOn, at }: { chatId: string; da
   const pane = view.kind === "edit" ? `edit-${view.event?.id ?? "new"}` : viewing ? `event-${viewing.id}` : "month";
   return (
     <div className="flex h-full flex-col bg-chat">
-      <div className="drag h-[26px] shrink-0" data-tauri-drag-region />
+      <div className="drag h-[26px] shrink-0 win:hidden" data-tauri-drag-region />
       <div
         className="drag flex h-[26px] shrink-0 items-center justify-center px-16 text-[12.5px] font-semibold text-secondary"
         data-tauri-drag-region
@@ -649,7 +650,7 @@ function Editor({
       onKeyDown={(e) => {
         // Escape in a picker (portaled outside the form) closes just the picker.
         if (e.key === "Escape" && e.currentTarget.contains(e.target as Node)) onDone();
-        if (e.key === "Enter" && e.metaKey) save();
+        if (e.key === "Enter" && (e.metaKey || (isWindows && e.ctrlKey))) save();
       }}
     >
       <div className="grid grid-cols-[1fr_auto_1fr] items-center px-2 pb-1">

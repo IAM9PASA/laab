@@ -65,7 +65,7 @@ export function LiffDevTools() {
   return (
     <div className="flex h-full bg-chat text-primary">
       <aside className="flex w-[232px] shrink-0 flex-col bg-rail">
-        <div className="drag h-[44px] shrink-0" data-tauri-drag-region />
+        <div className="drag h-[44px] shrink-0 win:hidden" data-tauri-drag-region />
         <div className="px-4 pb-2 text-[11px] font-semibold tracking-[0.06em] text-secondary uppercase">หน้าต่าง LIFF</div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           {newestFirst.map((s) => {
@@ -98,7 +98,7 @@ export function LiffDevTools() {
         <Detail key={current.label} session={current} />
       ) : (
         <div className="flex flex-1 flex-col">
-          <div className="drag h-[44px] shrink-0" data-tauri-drag-region />
+          <div className="drag h-[44px] shrink-0 win:hidden" data-tauri-drag-region />
           <div className="flex flex-1 flex-col items-center justify-center gap-1 px-8 pb-12 text-center">
             <div className="text-[14px]">ยังไม่มีหน้าต่าง LIFF</div>
             <div className="text-[12.5px] text-secondary">เปิด LIFF จากแชทหรือเมนูของบัญชีทางการ แล้วจะเห็นข้อมูลและ log ที่นี่</div>

@@ -76,7 +76,7 @@ export function FriendsPage() {
   }, [friendList, list, q, me?.mid]);
   return (
     <div className="flex h-full flex-col bg-list">
-      <div className="drag px-4 pt-[34px] pb-2" data-tauri-drag-region>
+      <div className="drag px-4 pt-[34px] pb-2 win:pt-3" data-tauri-drag-region>
         <label className="no-drag flex h-8 items-center gap-2 rounded-md bg-field px-2.5 text-secondary">
           <SearchIcon size={14} />
           <input

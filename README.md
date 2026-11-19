@@ -31,6 +31,21 @@ To build it yourself you need Rust and pnpm:
 open dist/LAAB.app
 ```
 
+### Windows
+
+This fork also builds for Windows 10 and 11 (x64). The **Windows** workflow
+in GitHub Actions builds `LAAB_<version>_x64-setup.exe`; download it from the
+run's **Artifacts** and run it. The database key is kept in Windows
+Credential Manager instead of the Keychain, and data lives in
+`%APPDATA%\Laab\`. Not on Windows yet: scanning a QR code from the screen
+or an image in LIFF apps, the taskbar unread badge, opening a chat by
+clicking its notification, a voice clip's length when you send one, and
+automatic updates.
+
+To build it on Windows yourself you need Rust, pnpm and Perl
+(Strawberry Perl), then run `pnpm install` and `pnpm tauri build --bundles nsis`
+in `desktop/`.
+
 ## Using it
 
 Sign in with a QR code (scan it with LINE on your phone), or with your email

@@ -1,0 +1,78 @@
+name: Windows
+
+# Builds the Windows installer (LAAB_x.y.z_x64-setup.exe). Download it from
+# the run's Artifacts. Runs on every push, or by hand from the Actions tab.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Frontend
+        working-directory: desktop
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec tsc --noEmit
+          pnpm test
+
+      # OpenSSL for SQLCipher is built from source; it needs Perl, which the
+      # runner has (Strawberry Perl).
+      - name: Build installer
+        working-directory: desktop
+        run: pnpm tauri build --bundles nsis
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LAAB-windows-x64
+          path: desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      # tauri-build wants the frontend folder to exist.
+      - name: Backend
+        working-directory: desktop/src-tauri
+        shell: bash
+        run: |
+          mkdir -p ../dist
+          cargo test

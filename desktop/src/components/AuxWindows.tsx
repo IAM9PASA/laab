@@ -589,7 +589,7 @@ export function AlbumsNotesWindow({ chatId, tab, post, at }: { chatId: string; t
   return (
     <div className="flex h-full flex-col bg-chat">
       {/* LINE puts the title on its own row under the traffic lights. */}
-      <div className="drag h-[26px] shrink-0" data-tauri-drag-region />
+      <div className="drag h-[26px] shrink-0 win:hidden" data-tauri-drag-region />
       <div className="drag flex h-[30px] shrink-0 items-center justify-center px-10 text-[14px] font-semibold" data-tauri-drag-region>
         <span className="truncate">{title}</span>
       </div>

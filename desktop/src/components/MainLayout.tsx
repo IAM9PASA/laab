@@ -1,4 +1,5 @@
 import { ForwardSheet } from "./ForwardSheet";
+import { isWindows } from "../lib/platform";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -91,7 +92,7 @@ export function MainLayout({ chatId }: { chatId: string | null }) {
   // ⌥⌘L: LIFF DevTools. By key code, since ⌥L types "¬".
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === "KeyL" && e.metaKey && e.altKey && !e.shiftKey && !e.ctrlKey) {
+      if (e.code === "KeyL" && e.altKey && !e.shiftKey && (isWindows ? e.ctrlKey && !e.metaKey : e.metaKey && !e.ctrlKey)) {
         e.preventDefault();
         api.openLiffDevtools().catch((err) => notice(errorText(err)));
       }

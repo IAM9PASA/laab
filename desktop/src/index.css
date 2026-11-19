@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* `win:` styles apply on Windows, which has a native title bar instead of
+   macOS's overlaid traffic lights (set in main.tsx). */
+@custom-variant win (&:where([data-platform="windows"], [data-platform="windows"] *));
+
 /* LINE for Mac palette. Dark values are sampled from the real app; light values
    follow LINE's light theme. */
 @theme {

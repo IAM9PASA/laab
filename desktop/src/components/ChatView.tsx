@@ -352,7 +352,7 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
     <div className="relative flex h-full flex-col bg-chat">
       {/* LINE for Mac: the header sits under a title-bar strip, level with
           the chat list's search box. */}
-      <div className="drag h-[56px] shrink-0" data-tauri-drag-region />
+      <div className="drag h-[56px] shrink-0 win:hidden" data-tauri-drag-region />
       <header className="drag flex h-[56px] shrink-0 items-center gap-1.5 px-4" data-tauri-drag-region>
         {badge && chat?.kind === "bot" && (
           <span title={badgeLabel[badge]} className={`no-drag shrink-0 ${badgeColor[badge]}`}>

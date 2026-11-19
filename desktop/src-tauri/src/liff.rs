@@ -156,7 +156,21 @@ fn normalize_locale(raw: &str) -> Option<String> {
     })
 }
 
+/// The system locale (`LANG` and friends), read once.
+#[cfg(not(target_os = "macos"))]
+fn mac_locale() -> Option<String> {
+    static SYS: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    SYS.get_or_init(|| {
+        ["LC_ALL", "LC_MESSAGES", "LANG"]
+            .iter()
+            .find_map(|v| std::env::var(v).ok().filter(|s| !s.is_empty()))
+            .and_then(|s| normalize_locale(s.split('.').next().unwrap_or_default()))
+    })
+    .clone()
+}
+
 /// The Mac's locale (`AppleLocale`), read once.
+#[cfg(target_os = "macos")]
 fn mac_locale() -> Option<String> {
     static MAC: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     MAC.get_or_init(|| {

@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde_json::Value as Json;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
+use crate::commands::OverlayTitle;
 use crate::liff::LiffView;
 use crate::state::now_ms;
 
@@ -322,8 +323,7 @@ pub fn open(app: &AppHandle, focus: Option<&str>) -> tauri::Result<()> {
         .title("LIFF DevTools")
         .inner_size(960.0, 620.0)
         .min_inner_size(640.0, 360.0)
-        .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true)
+        .overlay_title()
         .build()?;
     }
     if let Some(label) = focus {

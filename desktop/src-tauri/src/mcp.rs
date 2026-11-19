@@ -2,7 +2,8 @@
 //! LAAB: read and search chats, send messages, manage chats.
 //!
 //! The app listens on a Unix socket in the data folder (`mcp.sock`, 0600)
-//! only while MCP is on. AI apps start `LAAB mcp`, which pipes stdio to that
+//! only while MCP is on (on Windows, a local named pipe instead; see
+//! `paths::mcp_socket`). AI apps start `LAAB mcp`, which pipes stdio to that
 //! socket (`mcp_bridge.rs`). Messages are newline-delimited JSON-RPC 2.0, as
 //! in MCP's stdio transport.
 //!
@@ -21,7 +22,8 @@ use std::sync::{Arc, LazyLock, Mutex};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tauri::{Emitter, Manager};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+#[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinSet;
@@ -338,12 +340,20 @@ pub fn shutdown(state: &AppState) {
     }
 }
 
+#[cfg(unix)]
 fn inode(path: &std::path::Path) -> Option<u64> {
     use std::os::unix::fs::MetadataExt;
     std::fs::metadata(path).ok().map(|m| m.ino())
 }
 
+/// A named pipe disappears with its last handle: nothing to delete.
+#[cfg(windows)]
+fn remove_own_socket(_path: &std::path::Path) {
+    lock(&RT.socket).take();
+}
+
 /// Delete the socket file only if it is still the one this instance bound.
+#[cfg(unix)]
 fn remove_own_socket(path: &std::path::Path) {
     let ours = lock(&RT.socket).take();
     if ours.is_some() && inode(path) == ours {
@@ -400,7 +410,7 @@ pub fn setup(state: &AppState) -> Setup {
         .map(|d| vec![("LAAB_DATA_DIR".to_string(), d)])
         .unwrap_or_default();
     Setup {
-        listening: lock(&RT.listener).is_some() && state.paths.mcp_socket().exists(),
+        listening: lock(&RT.listener).is_some() && serving(&state.paths.mcp_socket()),
         clients: *lock(&RT.clients),
         socket: state.paths.mcp_socket().to_string_lossy().into_owned(),
         command: std::env::current_exe()
@@ -507,6 +517,78 @@ pub fn clip(s: &str, n: usize) -> String {
 
 // ---------------------------------------------------------------- server
 
+#[cfg(unix)]
+fn serving(path: &std::path::Path) -> bool {
+    path.exists()
+}
+
+#[cfg(windows)]
+fn serving(_path: &std::path::Path) -> bool {
+    lock(&RT.socket).is_some()
+}
+
+#[cfg(windows)]
+async fn listen(state: Arc<AppState>) {
+    use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
+
+    let path = state.paths.mcp_socket();
+    let create = |first: bool| -> std::io::Result<NamedPipeServer> {
+        ServerOptions::new()
+            .first_pipe_instance(first)
+            .reject_remote_clients(true)
+            .create(&path)
+    };
+    // A LAAB that is quitting still owns the pipe for a moment; wait for it
+    // rather than leave MCP off once it has gone.
+    let mut tries = 0;
+    let mut server = loop {
+        match create(true) {
+            Ok(s) => break s,
+            Err(e) => {
+                tries += 1;
+                if tries >= 20 {
+                    tracing::warn!("MCP pipe {}: {e}", path.display());
+                    return;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            }
+        }
+    };
+    *lock(&RT.socket) = Some(0);
+    tracing::info!("MCP listening");
+    let mut conns = JoinSet::new();
+    loop {
+        let connected = tokio::select! {
+            c = server.connect() => c,
+            Some(_) = conns.join_next(), if !conns.is_empty() => continue,
+        };
+        if let Err(e) = connected {
+            tracing::warn!("MCP accept: {e}");
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            continue;
+        }
+        // The next client needs its own pipe instance, made before this one
+        // is handed over so the name never goes missing.
+        let next = match create(false) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("MCP pipe {}: {e}", path.display());
+                lock(&RT.socket).take();
+                return;
+            }
+        };
+        let stream = std::mem::replace(&mut server, next);
+        *lock(&RT.clients) += 1;
+        let s = state.clone();
+        conns.spawn(async move {
+            serve(s, stream).await;
+            let mut n = lock(&RT.clients);
+            *n = n.saturating_sub(1);
+        });
+    }
+}
+
+#[cfg(unix)]
 async fn listen(state: Arc<AppState>) {
     let path = state.paths.mcp_socket();
     // A LAAB that is quitting still answers for a moment; wait for it
@@ -557,8 +639,8 @@ async fn listen(state: Arc<AppState>) {
     }
 }
 
-async fn serve(state: Arc<AppState>, stream: UnixStream) {
-    let (read, mut write) = stream.into_split();
+async fn serve<T: AsyncRead + AsyncWrite + Send + 'static>(state: Arc<AppState>, stream: T) {
+    let (read, mut write) = tokio::io::split(stream);
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
     let writer = tokio::spawn(async move {
         while let Some(mut line) = rx.recv().await {

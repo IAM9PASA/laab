@@ -523,6 +523,12 @@ fn too_large(kind: ObjType) -> String {
 
 /// An audio clip's length, from macOS's `afinfo`. LINE shows a clip sent
 /// without one as 0:00.
+#[cfg(not(target_os = "macos"))]
+async fn audio_duration_ms(_path: &std::path::Path) -> Option<u64> {
+    None
+}
+
+#[cfg(target_os = "macos")]
 async fn audio_duration_ms(path: &std::path::Path) -> Option<u64> {
     let out = tokio::process::Command::new("/usr/bin/afinfo")
         .arg(path)
@@ -1431,8 +1437,7 @@ pub fn open_chat_window(app: tauri::AppHandle, chat_id: String, title: String) -
     .title(title)
     .inner_size(460.0, 760.0)
     .min_inner_size(420.0, 420.0)
-    .title_bar_style(tauri::TitleBarStyle::Overlay)
-    .hidden_title(true)
+    .overlay_title()
     .build()
     .map_err(err)?;
     Ok(())
@@ -2249,8 +2254,7 @@ pub fn open_aux_window(
     .title(title)
     .inner_size(w, h)
     .min_inner_size(300.0, 400.0)
-    .title_bar_style(tauri::TitleBarStyle::Overlay)
-    .hidden_title(true)
+    .overlay_title()
     .build()
     .map_err(err)?;
     Ok(())
@@ -2473,5 +2477,24 @@ mod tests {
         let ms = audio_duration_ms(std::path::Path::new("/System/Library/Sounds/Glass.aiff")).await;
         assert!(ms.is_some_and(|ms| ms > 500 && ms < 5000), "{ms:?}");
         assert_eq!(audio_duration_ms(std::path::Path::new("/nonexistent.m4a")).await, None);
+    }
+}
+
+/// macOS: the page runs under the title bar, as in LINE for Mac. Other
+/// systems keep their own title bar.
+pub(crate) trait OverlayTitle {
+    fn overlay_title(self) -> Self;
+}
+
+impl<'a, R: tauri::Runtime, M: tauri::Manager<R>> OverlayTitle for WebviewWindowBuilder<'a, R, M> {
+    #[cfg(target_os = "macos")]
+    fn overlay_title(self) -> Self {
+        self.title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn overlay_title(self) -> Self {
+        self
     }
 }

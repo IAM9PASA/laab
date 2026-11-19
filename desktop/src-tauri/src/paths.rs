@@ -74,8 +74,18 @@ impl Paths {
     }
 }
 
+#[cfg(unix)]
 pub fn mcp_socket(root: &Path) -> PathBuf {
     root.join("mcp.sock")
+}
+
+/// Windows has no Unix sockets in tokio: a local named pipe, named after
+/// the data folder so a demo or `LAAB_DATA_DIR` instance gets its own.
+#[cfg(windows)]
+pub fn mcp_socket(root: &Path) -> PathBuf {
+    use sha2::{Digest, Sha256};
+    let hash = Sha256::digest(root.to_string_lossy().as_bytes());
+    PathBuf::from(format!(r"\\.\pipe\laab-mcp-{}", hex::encode(&hash[..8])))
 }
 
 pub fn private_dir(path: &Path) -> Result<()> {

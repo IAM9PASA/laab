@@ -695,19 +695,8 @@ fn chrono_like_today() -> f64 {
 }
 
 fn local_offset_ms() -> f64 {
-    // The demo only needs "today" to look right; read the offset from `date`.
-    std::process::Command::new("date")
-        .arg("+%z")
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .and_then(|s| {
-            let s = s.trim();
-            let sign = if s.starts_with('-') { -1.0 } else { 1.0 };
-            let digits = s.trim_start_matches(['+', '-']);
-            let h: f64 = digits.get(0..2)?.parse().ok()?;
-            let m: f64 = digits.get(2..4)?.parse().ok()?;
-            Some(sign * (h * 3_600_000.0 + m * 60_000.0))
-        })
-        .unwrap_or(0.0)
+    // The demo only needs "today" to look right. From chrono rather than
+    // `date`, which Windows doesn't have.
+    use chrono::Offset;
+    chrono::Local::now().offset().fix().local_minus_utc() as f64 * 1000.0
 }

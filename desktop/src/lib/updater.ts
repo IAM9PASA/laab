@@ -2,6 +2,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { createStore, useStore } from "@tanstack/react-store";
+import { isWindows } from "./platform";
 
 const CHECK_EVERY_MS = 30 * 60 * 1000;
 
@@ -36,7 +37,8 @@ function checkShared() {
  *  and downloads a newer version in the background. Failures (offline,
  *  GitHub down) wait for the next check. Dev builds don't check. */
 export function startUpdateChecks() {
-  if (import.meta.env.DEV || started) return;
+  // Releases are macOS builds; a Windows build is updated by hand.
+  if (import.meta.env.DEV || started || isWindows) return;
   started = true;
   const run = () => checkShared().catch(() => {});
   run();

@@ -1,4 +1,5 @@
 import { invoke as tauriInvoke, type InvokeArgs, type InvokeOptions } from "@tauri-apps/api/core";
+import { isWindows } from "./platform";
 import { listen } from "@tauri-apps/api/event";
 import { QueryClient, queryOptions, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -316,7 +317,8 @@ export function useBackendEvents() {
   }, []);
 }
 
-const MEDIA = "media://localhost";
+// WebView2 on Windows serves custom schemes as http://<scheme>.localhost.
+const MEDIA = isWindows ? "http://media.localhost" : "media://localhost";
 
 export const mediaUrl = {
   avatar: (mid: string, picture?: string | null, local?: string | null) =>
