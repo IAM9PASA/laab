@@ -156,8 +156,23 @@ fn normalize_locale(raw: &str) -> Option<String> {
     })
 }
 
+/// Windows' user locale (`th-TH`), read once.
+#[cfg(windows)]
+fn mac_locale() -> Option<String> {
+    use windows_sys::Win32::Globalization::GetUserDefaultLocaleName;
+    static SYS: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    SYS.get_or_init(|| {
+        let mut buf = [0u16; 85];
+        // SAFETY: the buffer is LOCALE_NAME_MAX_LENGTH (85) wide chars.
+        let n = unsafe { GetUserDefaultLocaleName(buf.as_mut_ptr(), buf.len() as i32) };
+        let name = String::from_utf16_lossy(&buf[..(n.max(1) as usize - 1)]);
+        normalize_locale(&name)
+    })
+    .clone()
+}
+
 /// The system locale (`LANG` and friends), read once.
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn mac_locale() -> Option<String> {
     static SYS: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     SYS.get_or_init(|| {

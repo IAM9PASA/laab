@@ -32,7 +32,7 @@ pub async fn scan(app: &AppHandle, parent: Option<&tauri::WebviewWindow>) -> Opt
     });
     let image = match rx.await.ok()? {
         MessageDialogResult::Custom(label) if label == PICK => pick_image(app).await?,
-        MessageDialogResult::Custom(label) if label == SCREEN => capture_region().await?,
+        MessageDialogResult::Custom(label) if label == SCREEN => capture_region(app).await?,
         _ => return None,
     };
     let screenshot = image.starts_with(std::env::temp_dir());
@@ -64,17 +64,48 @@ async fn pick_image(app: &AppHandle) -> Option<PathBuf> {
     rx.await.ok()??.into_path().ok()
 }
 
-/// No region screenshot tool to call outside macOS; the user picks a saved
-/// image instead.
-#[cfg(not(target_os = "macos"))]
-async fn capture_region() -> Option<PathBuf> {
+/// Windows' own snipping overlay (Win+Shift+S). It puts the snip on the
+/// clipboard, so wait for a new image there; Escape leaves it unchanged and
+/// the wait runs out.
+#[cfg(windows)]
+async fn capture_region(app: &AppHandle) -> Option<PathBuf> {
+    use sha2::{Digest, Sha256};
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+
+    let image = || app.clipboard().read_image().ok();
+    let before = image().map(|i| Sha256::digest(i.rgba()));
+    std::process::Command::new("explorer").arg("ms-screenclip:").spawn().ok()?;
+    let start = std::time::Instant::now();
+    while start.elapsed() < std::time::Duration::from_secs(45) {
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        let Some(snip) = image() else { continue };
+        if Some(Sha256::digest(snip.rgba())) == before {
+            continue;
+        }
+        let path = std::env::temp_dir()
+            .join(format!("laab-scan-{}.png", crate::state::now_ms() as u64));
+        image::save_buffer(
+            &path,
+            snip.rgba(),
+            snip.width(),
+            snip.height(),
+            image::ExtendedColorType::Rgba8,
+        )
+        .ok()?;
+        return Some(path);
+    }
+    None
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+async fn capture_region(_app: &AppHandle) -> Option<PathBuf> {
     None
 }
 
 /// macOS's own region screenshot (⌘⇧4): the user drags over the code, or
 /// presses Escape and nothing is saved.
 #[cfg(target_os = "macos")]
-async fn capture_region() -> Option<PathBuf> {
+async fn capture_region(_app: &AppHandle) -> Option<PathBuf> {
     let path =
         std::env::temp_dir().join(format!("laab-scan-{}.png", crate::state::now_ms() as u64));
     let status = tokio::process::Command::new("/usr/sbin/screencapture")
@@ -127,12 +158,28 @@ pub fn read_code(path: &Path) -> Option<String> {
     })
 }
 
-#[cfg(not(target_os = "macos"))]
+/// The first QR code in the image at `path`, found with rqrr. Unlike
+/// Vision it reads QR codes only, not barcodes.
+#[cfg(windows)]
+pub fn read_code(path: &Path) -> Option<String> {
+    let img = image::open(path).ok()?.to_luma8();
+    let (w, h) = img.dimensions();
+    let mut prepared = rqrr::PreparedImage::prepare_from_greyscale(w as usize, h as usize, |x, y| {
+        img.get_pixel(x as u32, y as u32)[0]
+    });
+    prepared
+        .detect_grids()
+        .into_iter()
+        .find_map(|g| g.decode().ok().map(|(_, text)| text))
+        .filter(|t| !t.is_empty())
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn read_code(_path: &Path) -> Option<String> {
     None
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(all(test, any(target_os = "macos", windows)))]
 mod tests {
     use super::*;
 

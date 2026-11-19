@@ -304,9 +304,36 @@ pub fn update_badge(state: &AppState) {
     if let Some(w) = state.app.get_webview_window("main") {
         #[cfg(target_os = "macos")]
         let _ = w.set_badge_label(label);
-        #[cfg(not(target_os = "macos"))]
+        // Windows has no number badge: a red dot over the taskbar icon, and
+        // the count in the title, which the taskbar shows on hover.
+        #[cfg(windows)]
+        {
+            let _ = w.set_overlay_icon(label.as_ref().map(|_| red_dot()));
+            let _ = w.set_title(&match &label {
+                Some(n) => format!("LAAB ({n})"),
+                None => "LAAB".into(),
+            });
+        }
+        #[cfg(not(any(target_os = "macos", windows)))]
         let _ = (w, label);
     }
+}
+
+/// A 16×16 red dot for the taskbar overlay, antialiased at the edge.
+#[cfg(windows)]
+fn red_dot() -> tauri::image::Image<'static> {
+    const SIDE: u32 = 16;
+    let mut rgba = Vec::with_capacity((SIDE * SIDE * 4) as usize);
+    let c = (SIDE as f32 - 1.0) / 2.0;
+    for y in 0..SIDE {
+        for x in 0..SIDE {
+            let d = ((x as f32 - c).powi(2) + (y as f32 - c).powi(2)).sqrt();
+            let alpha = (c + 0.5 - d).clamp(0.0, 1.0);
+            // LINE's badge red, #ff334b.
+            rgba.extend_from_slice(&[0xff, 0x33, 0x4b, (alpha * 255.0) as u8]);
+        }
+    }
+    tauri::image::Image::new_owned(rgba, SIDE, SIDE)
 }
 
 #[cfg(test)]

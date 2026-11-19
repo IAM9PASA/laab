@@ -523,9 +523,46 @@ fn too_large(kind: ObjType) -> String {
 
 /// An audio clip's length, from macOS's `afinfo`. LINE shows a clip sent
 /// without one as 0:00.
+/// Outside macOS: an MP4/M4A clip's length from its `mvhd` box. Other
+/// formats get none.
 #[cfg(not(target_os = "macos"))]
-async fn audio_duration_ms(_path: &std::path::Path) -> Option<u64> {
-    None
+async fn audio_duration_ms(path: &std::path::Path) -> Option<u64> {
+    let data = tokio::fs::read(path).await.ok()?;
+    mp4_duration_ms(&data)
+}
+
+/// The movie length in an MP4 file's `moov/mvhd` box.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn mp4_duration_ms(data: &[u8]) -> Option<u64> {
+    fn boxes(mut d: &[u8]) -> impl Iterator<Item = ([u8; 4], &[u8])> {
+        std::iter::from_fn(move || {
+            if d.len() < 8 {
+                return None;
+            }
+            let mut size = u32::from_be_bytes(d[0..4].try_into().ok()?) as u64;
+            let kind: [u8; 4] = d[4..8].try_into().ok()?;
+            let mut head = 8;
+            if size == 1 {
+                size = u64::from_be_bytes(d.get(8..16)?.try_into().ok()?);
+                head = 16;
+            } else if size == 0 {
+                size = d.len() as u64;
+            }
+            let size = usize::try_from(size).ok().filter(|&s| s >= head && s <= d.len())?;
+            let body = &d[head..size];
+            d = &d[size..];
+            Some((kind, body))
+        })
+    }
+    let moov = boxes(data).find(|(k, _)| k == b"moov")?.1;
+    let mvhd = boxes(moov).find(|(k, _)| k == b"mvhd")?.1;
+    let be32 = |at: usize| Some(u32::from_be_bytes(mvhd.get(at..at + 4)?.try_into().ok()?) as u64);
+    let (scale, length) = match *mvhd.first()? {
+        0 => (be32(12)?, be32(16)?),
+        1 => (be32(20)?, u64::from_be_bytes(mvhd.get(24..32)?.try_into().ok()?)),
+        _ => return None,
+    };
+    (scale > 0 && length > 0).then(|| length * 1000 / scale)
 }
 
 #[cfg(target_os = "macos")]
@@ -2283,12 +2320,16 @@ pub async fn open_viewer(app: tauri::AppHandle, state: S<'_>, payload: serde_jso
         let _ = w.unminimize();
         return w.set_focus().map_err(err);
     }
-    #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
     let w = WebviewWindowBuilder::new(&app, "viewer", WebviewUrl::App("index.html#/viewer".into()))
         // The page retitles it with the chat's name, as LINE does.
         .title("รูปภาพ")
         .inner_size(900.0, 760.0)
-        .min_inner_size(480.0, 360.0)
+        .min_inner_size(480.0, 360.0);
+    // On Windows a window's theme is its own, so the builder can do it.
+    #[cfg(not(target_os = "macos"))]
+    let w = w.theme(Some(tauri::Theme::Dark));
+    #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+    let w = w
         .build()
         .map_err(err)?;
     #[cfg(target_os = "macos")]
@@ -2472,6 +2513,24 @@ mod tests {
         assert_eq!(send_plan(&paths(&["a.jpg", "b.mov"])), [SendStep::One(0), SendStep::One(1)]);
         assert_eq!(send_plan(&paths(&["a.gif", "b.gif"])), [SendStep::One(0), SendStep::One(1)]);
         assert_eq!(send_plan(&[]), []);
+    }
+
+    #[test]
+    fn reads_an_mp4_length() {
+        fn mp4_box(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+            let mut b = ((body.len() + 8) as u32).to_be_bytes().to_vec();
+            b.extend_from_slice(kind);
+            b.extend_from_slice(body);
+            b
+        }
+        // version 0: flags, created, modified, timescale 1000, duration 2500
+        let mut mvhd = vec![0u8; 12];
+        mvhd.extend_from_slice(&1000u32.to_be_bytes());
+        mvhd.extend_from_slice(&2500u32.to_be_bytes());
+        let mut file = mp4_box(b"ftyp", b"M4A ");
+        file.extend(mp4_box(b"moov", &mp4_box(b"mvhd", &mvhd)));
+        assert_eq!(mp4_duration_ms(&file), Some(2500));
+        assert_eq!(mp4_duration_ms(b"not an mp4"), None);
     }
 
     #[cfg(target_os = "macos")]
