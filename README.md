@@ -33,14 +33,18 @@ open dist/LAAB.app
 
 ### Windows
 
-This fork also builds for Windows 10 and 11 (x64). The **Windows** workflow
-in GitHub Actions builds `LAAB_<version>_x64-setup.exe`; download it from the
-run's **Artifacts** and run it. The database key is kept in Windows
+This fork also builds for Windows 10 and 11 (x64). Download
+`LAAB_<version>_x64-setup.exe` from
+[Releases](https://github.com/IAM9PASA/laab/releases) and run it. The
+**Windows** workflow in GitHub Actions also builds one for every push, under
+the run's **Artifacts**. The database key is kept in Windows
 Credential Manager instead of the Keychain, and data lives in
-`%APPDATA%\Laab\`. Not on Windows yet: scanning a QR code from the screen
-or an image in LIFF apps, the taskbar unread badge, opening a chat by
-clicking its notification, a voice clip's length when you send one, and
-automatic updates.
+`%APPDATA%\Laab\`. In LIFF apps, a QR code is read from an image or from a
+snip of the screen (QR codes only, not barcodes). Unread chats show as a red
+dot on the taskbar icon and a count in the window title. Not on Windows yet:
+opening a chat by clicking its notification, the length of a voice clip
+that isn't M4A, and automatic updates (install a newer release over the old
+one).
 
 To build it on Windows yourself you need Rust, pnpm and Perl
 (Strawberry Perl), then run `pnpm install` and `pnpm tauri build --bundles nsis`
