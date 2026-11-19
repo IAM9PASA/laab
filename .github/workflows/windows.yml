@@ -2,8 +2,9 @@ name: Windows
 
 # Builds the Windows installer (LAAB_x.y.z_x64-setup.exe). Download it from
 # the run's Artifacts. Runs on every push, or by hand from the Actions tab.
-# Pushing a tag like v0.5.3-windows.1 also publishes a GitHub release with
-# the installer, once the build and the tests pass.
+# Pushing a tag like v0.5.3-windows.1, or publishing a release with a new
+# v* tag on GitHub, attaches the installer to that tag's release once the
+# build and the tests pass.
 
 on:
   push:
@@ -98,7 +99,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" installer/*.exe \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "LAAB $TAG" \
-            --notes "Windows build of LAAB. Download LAAB_*_x64-setup.exe below and run it. Windows SmartScreen may warn that the installer is unsigned: choose More info, then Run anyway."
+          # A release made on GitHub's site already exists: add the file.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" installer/*.exe --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" installer/*.exe \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "LAAB $TAG" \
+              --notes "Windows build of LAAB. Download LAAB_*_x64-setup.exe below and run it. Windows SmartScreen may warn that the installer is unsigned: choose More info, then Run anyway."
+          fi
