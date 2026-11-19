@@ -1339,14 +1339,14 @@ pub fn liff_dev_eval(app: tauri::AppHandle, label: String, code: String) -> R<()
 }
 
 #[tauri::command]
-pub fn open_liff_devtools(app: tauri::AppHandle, focus: Option<String>) -> R<()> {
+pub async fn open_liff_devtools(app: tauri::AppHandle, focus: Option<String>) -> R<()> {
     crate::liff_devtools::open(&app, focus.as_deref()).map_err(err)
 }
 
 /// `reload`, `inspect`, `close`, `reopen` (fresh tokens) or `web` (as a
 /// plain page) for the LIFF window `label`.
 #[tauri::command]
-pub fn liff_dev_action(state: S<'_>, label: String, action: String) -> R<()> {
+pub async fn liff_dev_action(state: S<'_>, label: String, action: String) -> R<()> {
     let s = state.inner().clone();
     let session = crate::liff_devtools::session(&label).ok_or("ไม่พบหน้าต่าง LIFF นี้")?;
     let requested = session.info["requestedUrl"]
@@ -1424,7 +1424,7 @@ pub async fn liff_share(
 
 /// Open a chat in its own window.
 #[tauri::command]
-pub fn open_chat_window(app: tauri::AppHandle, chat_id: String, title: String) -> R<()> {
+pub async fn open_chat_window(app: tauri::AppHandle, chat_id: String, title: String) -> R<()> {
     let label = format!("chat-{}", crate::media::safe_name(&chat_id));
     if let Some(w) = app.get_webview_window(&label) {
         return w.set_focus().map_err(err);
@@ -2219,8 +2219,11 @@ fn aux_route(
     format!("/{kind}/{chat}?{}", query.finish())
 }
 
+/// Commands that open a window are async: a sync one runs on the main
+/// thread, and on Windows WebView2 then deadlocks and the window stays
+/// blank white.
 #[tauri::command]
-pub fn open_aux_window(
+pub async fn open_aux_window(
     app: tauri::AppHandle,
     kind: String,
     chat_id: String,
@@ -2272,7 +2275,7 @@ pub async fn older_messages(state: S<'_>, chat_id: String) -> R<usize> {
 
 /// Show photos and videos in LAAB's viewer window, opening it on first use.
 #[tauri::command]
-pub fn open_viewer(app: tauri::AppHandle, state: S<'_>, payload: serde_json::Value) -> R<()> {
+pub async fn open_viewer(app: tauri::AppHandle, state: S<'_>, payload: serde_json::Value) -> R<()> {
     use tauri::Emitter;
     *state.viewer.lock().unwrap_or_else(|e| e.into_inner()) = payload.clone();
     if let Some(w) = app.get_webview_window("viewer") {
