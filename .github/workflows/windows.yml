@@ -69,10 +69,10 @@ jobs:
         with:
           workspaces: desktop/src-tauri
 
-      # tauri-build wants the frontend folder to exist.
+      # The default shell (PowerShell), not bash: OpenSSL's build needs
+      # Strawberry Perl, and Git Bash's own Perl lacks modules it uses.
       - name: Backend
         working-directory: desktop/src-tauri
-        shell: bash
         run: |
-          mkdir -p ../dist
+          New-Item -ItemType Directory -Force ../dist | Out-Null
           cargo test
